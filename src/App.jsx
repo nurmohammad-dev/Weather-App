@@ -1,4 +1,4 @@
-import { createBrowserRouter } from "react-router";
+import { createBrowserRouter, Navigate } from "react-router";
 import { RouterProvider } from "react-router/dom";
 import Home from "./pages/Home";
 import MainLayout from "./layouts/MainLayout";
@@ -15,19 +15,18 @@ const router = createBrowserRouter([
       },
       {
         path: "/weather",
-        element: <Weather/>
-        
-      }
+        element: <Weather />,
+      },
+      {
+        path: "*",
+        element: <Navigate to="/" replace />,
+      },
     ],
   },
 ]);
 
 function Router() {
-  return (
-    <>
-      <RouterProvider router={router} />
-    </>
-  );
+  return <RouterProvider router={router} />;
 }
 
 export default Router;

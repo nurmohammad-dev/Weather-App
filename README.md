@@ -1,16 +1,60 @@
-# React + Vite
+# Weather App
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Short professional description
 
-Currently, two official plugins are available:
+## Features
+- Search locations
+- Current weather
+- 24-hour forecast
+- 7-day forecast
+- Geolocation
+- Celsius/Fahrenheit
+- Shareable weather URL
+- Local preferences
+- Day/night weather-aware UI
+- Reduced-motion support
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Tech Stack
+- Vite
+- React
+- JavaScript / JSX
+- Tailwind CSS
+- React Router
+- Lucide React
+- Lottie React
 
-## React Compiler
+## Getting Started
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### Installation
+npm install
 
-## Expanding the ESLint configuration
+### Development
+npm run dev
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Production Build
+npm run build
+npm run preview
+
+## Available Scripts
+
+| Command | Description |
+|---|---|
+| npm run dev | Start development server |
+| npm run lint | Run ESLint |
+| npm run build | Create production build |
+| npm run preview | Preview production build |
+
+## Routes
+
+| Route | Purpose |
+|---|---|
+| / | Search page |
+| /weather?... | Weather dashboard |
+
+## Data Source
+
+Weather and location data are provided by Open-Meteo.
+
+## Attribution
+
+Weather and geocoding data: Open-Meteo

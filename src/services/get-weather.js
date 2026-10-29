@@ -1,215 +1,194 @@
-const WMO_CODES = {
-  // 0-3: clear sky through to fully overcast
-  0: {
-    condition: "clear",
-    description: "Clear sky",
-    label: "Clear Sky",
-    icon: "clear",
-  },
-  1: {
-    condition: "partly_cloudy",
-    description: "Mainly clear",
-    label: "Partly Cloudy",
-    icon: "partly_cloudy",
-  },
-  2: {
-    condition: "partly_cloudy",
-    description: "Partly cloudy",
-    label: "Partly Cloudy",
-    icon: "partly_cloudy",
-  },
-  3: {
-    condition: "cloudy",
-    description: "Overcast",
-    label: "Cloudy",
-    icon: "cloudy",
-  },
+import { getWeatherCode } from "../utils/weatherCodes";
 
-  // 45-48: fog
-  45: { condition: "fog", description: "Fog", label: "Foggy", icon: "fog" },
-  48: {
-    condition: "fog",
-    description: "Depositing rime fog",
-    label: "Foggy",
-    icon: "fog",
-  },
+const FORECAST_URL = "https://api.open-meteo.com/v1/forecast";
 
-  // 51-57: drizzle (light steady rain), and drizzle that freezes on contact
-  51: {
-    condition: "drizzle",
-    description: "Light drizzle",
-    label: "Drizzle",
-    icon: "rain",
-  },
-  53: {
-    condition: "drizzle",
-    description: "Moderate drizzle",
-    label: "Drizzle",
-    icon: "rain",
-  },
-  55: {
-    condition: "drizzle",
-    description: "Dense drizzle",
-    label: "Drizzle",
-    icon: "rain",
-  },
-  56: {
-    condition: "freezing_rain",
-    description: "Light freezing drizzle",
-    label: "Freezing Rain",
-    icon: "rain",
-  },
-  57: {
-    condition: "freezing_rain",
-    description: "Dense freezing drizzle",
-    label: "Freezing Rain",
-    icon: "rain",
-  },
+const CURRENT_FIELDS = [
+  "temperature_2m",
+  "relative_humidity_2m",
+  "apparent_temperature",
+  "is_day",
+  "precipitation",
+  "weather_code",
+  "cloud_cover",
+  "pressure_msl",
+  "wind_speed_10m",
+  "wind_direction_10m",
+  "wind_gusts_10m",
+  "uv_index",
+  "visibility",
+].join(",");
 
-  // 61-67: rain, and rain that freezes on contact
-  61: {
-    condition: "rain",
-    description: "Slight rain",
-    label: "Rain",
-    icon: "rain",
-  },
-  63: {
-    condition: "rain",
-    description: "Moderate rain",
-    label: "Rain",
-    icon: "rain",
-  },
-  65: {
-    condition: "rain",
-    description: "Heavy rain",
-    label: "Rain",
-    icon: "rain",
-  },
-  66: {
-    condition: "freezing_rain",
-    description: "Light freezing rain",
-    label: "Freezing Rain",
-    icon: "rain",
-  },
-  67: {
-    condition: "freezing_rain",
-    description: "Heavy freezing rain",
-    label: "Freezing Rain",
-    icon: "rain",
-  },
+const HOURLY_FIELDS = [
+  "temperature_2m",
+  "weather_code",
+  "precipitation_probability",
+  "is_day",
+].join(",");
 
-  // 71-77: snow fall
-  71: {
-    condition: "snow",
-    description: "Slight snow fall",
-    label: "Snow",
-    icon: "snow",
-  },
-  73: {
-    condition: "snow",
-    description: "Moderate snow fall",
-    label: "Snow",
-    icon: "snow",
-  },
-  75: {
-    condition: "snow",
-    description: "Heavy snow fall",
-    label: "Snow",
-    icon: "snow",
-  },
-  77: {
-    condition: "snow",
-    description: "Snow grains",
-    label: "Snow",
-    icon: "snow",
-  },
+const DAILY_FIELDS = [
+  "weather_code",
+  "temperature_2m_max",
+  "temperature_2m_min",
+  "sunrise",
+  "sunset",
+  "uv_index_max",
+  "precipitation_probability_max",
+].join(",");
 
-  // 80-86: showers (short bursts of rain or snow)
-  80: {
-    condition: "showers",
-    description: "Slight rain showers",
-    label: "Rain Showers",
-    icon: "rain",
-  },
-  81: {
-    condition: "showers",
-    description: "Moderate rain showers",
-    label: "Rain Showers",
-    icon: "rain",
-  },
-  82: {
-    condition: "showers",
-    description: "Violent rain showers",
-    label: "Rain Showers",
-    icon: "rain",
-  },
-  85: {
-    condition: "snow",
-    description: "Slight snow showers",
-    label: "Snow",
-    icon: "snow",
-  },
-  86: {
-    condition: "snow",
-    description: "Heavy snow showers",
-    label: "Snow",
-    icon: "snow",
-  },
+const isAbortError = (error) => error?.name === "AbortError";
 
-  // 95-99: thunderstorms
-  95: {
-    condition: "thunderstorm",
-    description: "Thunderstorm",
-    label: "Thunderstorm",
-    icon: "storm",
-  },
-  96: {
-    condition: "thunderstorm",
-    description: "Thunderstorm with slight hail",
-    label: "Thunderstorm",
-    icon: "storm",
-  },
-  99: {
-    condition: "thunderstorm",
-    description: "Thunderstorm with heavy hail",
-    label: "Thunderstorm",
-    icon: "storm",
-  },
+const numberOrNull = (value) =>
+  Number.isFinite(value) ? Number(value) : null;
+
+const weatherIcon = (code, isDay) => {
+  const weather = getWeatherCode(code);
+  return weather.icon === "clear" && !isDay ? "clear_night" : weather.icon;
 };
 
+const buildHourly = (hourly, currentTime) => {
+  if (!hourly?.time?.length) return [];
 
-export const getWeather = async (place) => {
-    //  console.log("Place:", place);
+  const currentHour = currentTime
+    ? `${String(currentTime).slice(0, 13)}:00`
+    : null;
+  const startIndex = currentHour
+    ? hourly.time.findIndex((time) => time >= currentHour)
+    : 0;
+  const start = startIndex >= 0 ? startIndex : 0;
 
-    const {latitude, longitude} = place;
+  return hourly.time
+    .slice(start, start + 24)
+    .map((time, offset) => {
+      const index = start + offset;
+      const code = hourly.weather_code?.[index];
+      const isDay = hourly.is_day?.[index] !== 0;
+      const weather = getWeatherCode(code);
 
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,is_day,rain,precipitation,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,snowfall`;
+      return {
+        time,
+        temperature: numberOrNull(hourly.temperature_2m?.[index]),
+        precipitationProbability: numberOrNull(
+          hourly.precipitation_probability?.[index],
+        ),
+        isDay,
+        code: numberOrNull(code),
+        icon: weatherIcon(code, isDay),
+        condition: weather.condition,
+        conditionLabel: weather.label,
+      };
+    });
+};
 
-    const result = await fetch(url);
-    const data = await result.json();
-    const now = data.current;
-     console.log("Weather Data:", now.weather_code);
-    if(!now) {
-        throw new Error("Weather data not found!");
-    }
+const buildDaily = (daily) => {
+  if (!daily?.time?.length) return [];
 
-    //weather.name = weather['name']
-    const weather = WMO_CODES[now.weather_code];
-    console.log("Weather:", weather);
-
-    const icon = weather.icon ==="clear" && 
-    now.is_day===0 ? "clear_night" : weather.icon;
+  return daily.time.slice(0, 7).map((date, index) => {
+    const code = daily.weather_code?.[index];
+    const weather = getWeatherCode(code);
 
     return {
-        temperature: Math.round(now.temperature_2m),
-        humidity: now.relative_humidity_2m,
-        windSpeed: now.wind_speed_10m,
-        precipitation: now.precipitation,
-        feelsLike: Math.round(now.apparent_temperature),
-        condition: weather.condition,
-        description: weather.description,
-        conditionLabel: weather.label,
-        icon
-    }
+      date,
+      code: numberOrNull(code),
+      icon: weather.icon,
+      condition: weather.condition,
+      conditionLabel: weather.label,
+      max: numberOrNull(daily.temperature_2m_max?.[index]),
+      min: numberOrNull(daily.temperature_2m_min?.[index]),
+      precipitationProbability: numberOrNull(
+        daily.precipitation_probability_max?.[index],
+      ),
+      uvIndexMax: numberOrNull(daily.uv_index_max?.[index]),
+      sunrise: daily.sunrise?.[index] || null,
+      sunset: daily.sunset?.[index] || null,
+    };
+  });
 };
 
+export const getWeather = async (
+  { latitude, longitude },
+  { signal } = {},
+) => {
+  if (
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude) ||
+    latitude < -90 ||
+    latitude > 90 ||
+    longitude < -180 ||
+    longitude > 180
+  ) {
+    throw new Error("That location is not valid. Please choose another city.");
+  }
+
+  const params = new URLSearchParams({
+    latitude: String(latitude),
+    longitude: String(longitude),
+    current: CURRENT_FIELDS,
+    hourly: HOURLY_FIELDS,
+    daily: DAILY_FIELDS,
+    timezone: "auto",
+    forecast_days: "7",
+  });
+
+  let response;
+
+  try {
+    response = await fetch(`${FORECAST_URL}?${params.toString()}`, { signal });
+  } catch (error) {
+    if (isAbortError(error)) throw error;
+    throw new Error(
+      "We could not reach the weather service. Check your connection and try again.",
+      { cause: error },
+    );
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      `The weather service returned an error (${response.status}). Please try again.`,
+    );
+  }
+
+  let data;
+  try {
+    data = await response.json();
+  } catch (error) {
+    throw new Error(
+      "We received an invalid response from the weather service. Please try again.",
+      { cause: error },
+    );
+  }
+
+  if (!data?.current) {
+    throw new Error(
+      "Weather data is unavailable for this location. Please try another city.",
+    );
+  }
+
+  const now = data.current;
+  const isDay = now.is_day !== 0;
+  const weather = getWeatherCode(now.weather_code);
+  const icon = weatherIcon(now.weather_code, isDay);
+
+  return {
+    temperature: numberOrNull(now.temperature_2m),
+    feelsLike: numberOrNull(now.apparent_temperature),
+    humidity: numberOrNull(now.relative_humidity_2m),
+    windSpeed: numberOrNull(now.wind_speed_10m),
+    windDirection: numberOrNull(now.wind_direction_10m),
+    windGusts: numberOrNull(now.wind_gusts_10m),
+    precipitation: numberOrNull(now.precipitation),
+    cloudCover: numberOrNull(now.cloud_cover),
+    pressure: numberOrNull(now.pressure_msl),
+    visibility: numberOrNull(now.visibility),
+    uvIndex: numberOrNull(now.uv_index),
+    isDay,
+    condition: weather.condition,
+    description: weather.description,
+    conditionLabel: weather.label,
+    icon,
+    time: now.time || null,
+    timezone: data.timezone || "",
+    hourly: buildHourly(data.hourly, now.time),
+    daily: buildDaily(data.daily),
+    fetchedAt: new Date().toISOString(),
+  };
+};

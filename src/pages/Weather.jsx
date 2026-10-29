@@ -1,107 +1,247 @@
-import { Link, useLocation } from "react-router";
-import { getWeather } from "../services/get-weather";
-import { useState, useEffect } from "react";
-import WeatherCard from "../components/WeatherCard";
+import {
+  Cloud,
+  Droplets,
+  Eye,
+  Gauge,
+  Navigation,
+  Sun,
+  Umbrella,
+  Wind,
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router";
+import AppHeader from "../components/AppHeader";
+import DailyForecast from "../components/DailyForecast";
+import DashboardSkeleton from "../components/DashboardSkeleton";
+import EmptyState from "../components/EmptyState";
+import ErrorState from "../components/ErrorState";
+import HourlyForecast from "../components/HourlyForecast";
+import LocationModal from "../components/LocationModal";
+import MetricCard from "../components/MetricCard";
 import RecommendationCard from "../components/RecommendationCard";
-import WeatherType from "../components/WeatherType";
+import SunTimes from "../components/SunTimes";
+import WeatherCard from "../components/WeatherCard";
+import { useWeather } from "../hooks/useWeather";
+import {
+  formatPercent,
+  formatPrecipitation,
+  formatPressure,
+  formatUvIndex,
+  formatVisibility,
+  formatWindDirection,
+  getUvCategory,
+} from "../utils/format";
 import { getRecommendations } from "../utils/getRecommendation";
-import Loader from "../components/Loader";
-import LocationModel from "../components/LocationModel";
-
-
-
-
-
+import { getWeatherTheme } from "../utils/getTheme";
+import {
+  locationFromSearchParams,
+  locationToSearchParams,
+  readSavedLocation,
+  saveLocation,
+} from "../utils/location";
+import {
+  formatWind,
+  readUnitPreference,
+  saveUnitPreference,
+} from "../utils/units";
 
 const Weather = () => {
-  const value = useLocation();
-  const place = value.state.location;
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [unit, setUnit] = useState(readUnitPreference);
+  const [locationOpen, setLocationOpen] = useState(false);
 
-  const [weather, setWeather] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [open, setOpen] = useState(false);
+  const urlLocation = useMemo(
+    () => locationFromSearchParams(searchParams),
+    [searchParams],
+  );
+  const savedLocation = useMemo(() => readSavedLocation(), []);
+  const location = urlLocation || savedLocation;
 
-  const recommendation = getRecommendations(weather);
-  const recommendationColors = {
-    snow: "text-sky-600",
-    rain: "text-blue-600",
-    thunderstorm: "text-purple-700",
-    fog: "text-slate-600",
-    general: "text-green-600",
-  };
+  const { status, weather, error, retry } = useWeather(location);
+  const recommendation = useMemo(
+    () => getRecommendations(weather),
+    [weather],
+  );
+  const theme = useMemo(
+    () => (weather ? getWeatherTheme(weather.icon, weather.isDay) : null),
+    [weather],
+  );
 
   useEffect(() => {
-    if (!place) {
-      console.log("No place data available.");
-      return;
+    if (!urlLocation && savedLocation) {
+      setSearchParams(locationToSearchParams(savedLocation), {
+        replace: true,
+      });
     }
-    const fetchWeather = async () => {
-      setLoading(true);
-      try {
-        const result = await getWeather(place);
-        setWeather(result);
-      } catch (error) {
-        console.log("Error fetching weather data:", error);
-      } finally {
-        setLoading(false);
-        setOpen(false);
-      }
-    };
+  }, [urlLocation, savedLocation, setSearchParams]);
 
-    fetchWeather();
-  }, [place]);
+  useEffect(() => {
+    if (location) saveLocation(location);
+  }, [location]);
+
+  useEffect(() => {
+    saveUnitPreference(unit);
+  }, [unit]);
+
+  useEffect(() => {
+    document.title = location?.name
+      ? `${location.name} — Weather App`
+      : "Weather App — Local Forecast";
+  }, [location?.name]);
+
+  const handleLocationSelect = (nextLocation) => {
+    saveLocation(nextLocation);
+    setLocationOpen(false);
+    setSearchParams(locationToSearchParams(nextLocation));
+  };
+
+  const isLoading = Boolean(location) && (status === "idle" || status === "loading");
+  const hasWeather = status === "success" && Boolean(weather);
+
+  const metrics = weather
+    ? [
+        {
+          icon: Droplets,
+          label: "Humidity",
+          value: formatPercent(weather.humidity),
+          hint: "Relative humidity",
+        },
+        {
+          icon: Wind,
+          label: "Wind",
+          value: formatWind(weather.windSpeed, unit),
+          hint: Number.isFinite(weather.windDirection)
+            ? `From ${formatWindDirection(weather.windDirection)}`
+            : "Current wind",
+        },
+        {
+          icon: Navigation,
+          label: "Gusts",
+          value: formatWind(weather.windGusts, unit),
+          hint: "Peak gusts",
+        },
+        {
+          icon: Gauge,
+          label: "Pressure",
+          value: formatPressure(weather.pressure),
+          hint: "Sea level",
+        },
+        {
+          icon: Eye,
+          label: "Visibility",
+          value: formatVisibility(weather.visibility),
+          hint: "Current",
+        },
+        {
+          icon: Sun,
+          label: "UV index",
+          value: formatUvIndex(weather.uvIndex),
+          hint: getUvCategory(weather.uvIndex),
+        },
+        {
+          icon: Umbrella,
+          label: "Precipitation",
+          value: formatPrecipitation(weather.precipitation),
+          hint: "Current",
+        },
+        {
+          icon: Cloud,
+          label: "Cloud cover",
+          value: formatPercent(weather.cloudCover),
+          hint: "Sky cover",
+        },
+      ].filter((metric) => metric.value !== "—")
+    : [];
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#f0f9ff_0%,_#e0f2fe_18%,_#f8fafc_52%,_#eff6ff_100%)] px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-6xl">
-        <header className="mb-6">
-          {!loading && (
-            <div className="flex items-center justify-between gap-4 rounded-[30px] border border-white/80 bg-white/75 px-4 py-3 shadow-[0_16px_40px_-22px_rgba(14,116,144,0.55)] backdrop-blur-md sm:px-5">
-              <Link
-                className="inline-flex items-center rounded-full bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition duration-200 hover:-translate-y-0.5 hover:bg-sky-500"
-                to="/"
-              >
-                Back To Home
-              </Link>
+    <div className="relative overflow-hidden">
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 h-[32rem]"
+        style={{
+          background: `radial-gradient(55% 100% at 50% 0%, ${
+            theme?.glow || "rgba(47, 125, 246, 0.1)"
+          } 0%, rgba(246, 247, 249, 0) 72%)`,
+        }}
+        aria-hidden="true"
+      />
 
-              <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full bg-sky-500 shadow-[0_0_18px_rgba(14,165,233,0.9)]" />
-                <h1 className="text-center text-lg font-black tracking-[0.18em] text-sky-700 sm:text-xl">
-                  WEATHER APP
-                </h1>
+      <div className="relative mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+        <AppHeader
+          locationName={location?.name}
+          onChangeLocation={() => setLocationOpen(true)}
+          unit={unit}
+          onUnitChange={setUnit}
+          showUnitToggle
+        />
+
+        <main id="main" className="pb-6 pt-4">
+          {!location && (
+            <EmptyState onSearch={() => setLocationOpen(true)} />
+          )}
+
+          {isLoading && <DashboardSkeleton />}
+
+          {location && status === "error" && (
+            <ErrorState
+              message={error}
+              onRetry={retry}
+              onChangeLocation={() => setLocationOpen(true)}
+            />
+          )}
+
+          {hasWeather && (
+            <div className="space-y-6">
+              <div className="grid gap-6 lg:grid-cols-12">
+                <div className="animate-rise lg:col-span-7">
+                  <WeatherCard
+                    weather={weather}
+                    place={location}
+                    unit={unit}
+                  />
+                </div>
+
+                <div className="space-y-6 lg:col-span-5">
+                  <RecommendationCard recommendation={recommendation} />
+                  <SunTimes day={weather.daily?.[0]} />
+                </div>
               </div>
 
-              <button
-                onClick={() => setOpen(true)}
-                type="button"
-                className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-700 transition duration-200 hover:-translate-y-0.5 hover:bg-sky-100"
-              >
-                Change location
-              </button>
+              {metrics.length > 0 && (
+                <section aria-labelledby="details-heading">
+                  <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+                    <div>
+                      <h2
+                        id="details-heading"
+                        className="text-xl font-extrabold tracking-tight text-ink"
+                      >
+                        Today’s details
+                      </h2>
+                      <p className="mt-0.5 text-xs text-ink-soft">
+                        Conditions reported for this location
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                    {metrics.map((metric) => (
+                      <MetricCard key={metric.label} {...metric} />
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              <HourlyForecast hours={weather.hourly} unit={unit} />
+              <DailyForecast days={weather.daily} unit={unit} />
             </div>
           )}
-        </header>
-
-        {loading ? (
-          <Loader />
-        ) : (
-          <div className="grid gap-6 p-1 md:grid-cols-[1.08fr_0.92fr]">
-            <div className="space-y-5">
-              <div className="rounded-[30px] bg-white/80 p-3 shadow-[0_25px_70px_-32px_rgba(14,116,144,0.7)] ring-1 ring-sky-100 backdrop-blur-sm">
-                <WeatherCard weather={weather} place={place} />
-              </div>
-
-              <RecommendationCard
-                recommendation={recommendation}
-                recommendationColors={recommendationColors}
-              />
-            </div>
-
-            <WeatherType weather={weather} place={place} />
-          </div>
-        )}
-        {open && <LocationModel onClose={() => setOpen(false)} />}
+        </main>
       </div>
+
+      {locationOpen && (
+        <LocationModal
+          onDismiss={() => setLocationOpen(false)}
+          onSelect={handleLocationSelect}
+        />
+      )}
     </div>
   );
 };
